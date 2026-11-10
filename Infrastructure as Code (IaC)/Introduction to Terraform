@@ -1,0 +1,558 @@
+# Terraform Day-1 – Introduction to Terraform | Infrastructure as Code (IaC)
+
+## 1. What is Terraform?
+
+Terraform is an Infrastructure as Code (IaC) tool developed by HashiCorp.
+
+It is used to create, manage, update, and delete cloud infrastructure using configuration files.
+
+Instead of manually creating AWS resources through the AWS Management Console, we can write Terraform configuration files and automate the entire infrastructure creation process.
+
+**Key Information:**
+- Tool: Terraform
+- Developed by: HashiCorp
+- Creator: Mitchell Hashimoto
+- First released: 2014
+- Programming language: Go
+- Configuration language: HCL (HashiCorp Configuration Language)
+- Current corporate owner: IBM (following its acquisition of HashiCorp in 2025)
+
+## 2. Why Do We Need Terraform?
+
+Previously, we created AWS infrastructure manually, such as:
+
+- EC2 Instances
+- Elastic Load Balancers (ELB)
+- Auto Scaling Groups (ASG)
+- S3 Buckets
+- RDS Databases
+- VPC and Networking
+
+### Problems with Manual Infrastructure Creation
+
+1. It takes more time.
+2. There is a chance of human mistakes.
+3. Difficult to track infrastructure changes.
+4. Difficult to repeat the same infrastructure.
+5. Difficult to manage large infrastructure environments.
+
+### Solution: Infrastructure as Code
+
+Terraform allows us to define infrastructure in configuration files and create it automatically.
+
+Benefits:
+- Automation
+- Reusability
+- Consistency
+- Easy infrastructure management
+- Version control
+- Multi-cloud support
+
+## 3. History of Terraform
+
+- AWS introduced CloudFormation in 2011 to automate AWS infrastructure using JSON and YAML.
+- Azure provides Azure Resource Manager (ARM).
+- Google Cloud provides infrastructure management services.
+- Developers needed a common approach to manage infrastructure across different cloud providers.
+- Mitchell Hashimoto created Terraform to address this requirement.
+- Terraform 0.1 was released in July 2014.
+
+Terraform is a multi-cloud Infrastructure as Code tool.
+
+**Note:** Terraform's licensing changed in 2023 from the Mozilla Public License (MPL 2.0) to the Business Source License (BSL 1.1). OpenTofu was created as an open-source fork.
+
+## 4. Alternatives to Terraform
+
+1. OpenTofu
+2. Pulumi
+3. AWS CloudFormation
+4. Azure Resource Manager
+5. Google Cloud infrastructure management tools
+
+## 5. Terraform vs Ansible
+
+| Terraform | Ansible |
+|---|---|
+| Mainly used for infrastructure provisioning | Mainly used for configuration management |
+| Creates infrastructure | Configures servers and applications |
+| Manages infrastructure using state | Primarily uses an agentless execution model |
+| Uses HCL | Uses YAML for playbooks |
+
+**Example:**
+
+Terraform creates an EC2 instance in AWS.
+
+Ansible installs Java, Maven, Docker, and configures the application on that EC2 instance.
+
+Both tools can work together in DevOps automation.
+
+## 6. Terraform Project Structure
+
+Terraform does not mandate specific filenames. All `.tf` files in a working directory are loaded together.
+
+A commonly used project structure is:
+
+```text
+terraform-project/
+│
+├── provider.tf
+├── versions.tf
+├── backend.tf
+├── main.tf
+├── variables.tf
+├── terraform.tfvars
+├── outputs.tf
+├── locals.tf
+└── data.tf
+```
+
+### Explanation of Files
+
+| File | Purpose |
+|---|---|
+| provider.tf | Configures cloud providers such as AWS |
+| versions.tf | Defines Terraform and provider version requirements |
+| backend.tf | Configures where Terraform state is stored |
+| main.tf | Contains infrastructure resource definitions |
+| variables.tf | Declares input variables |
+| terraform.tfvars | Provides values for variables |
+| outputs.tf | Displays useful information after deployment |
+| locals.tf | Defines reusable local values |
+| data.tf | Retrieves information about existing infrastructure |
+
+## 7. Installing Terraform on Amazon Linux 2023
+
+Launch an Amazon Linux 2023 EC2 instance and configure suitable IAM permissions.
+
+### Installation Commands
+
+```bash
+sudo yum update -y
+
+sudo yum install -y yum-utils
+
+sudo yum-config-manager --add-repo \
+https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
+
+sudo yum install -y terraform
+
+terraform version
+```
+
+## 8. Installing Terraform on Ubuntu
+
+### Installation Commands
+
+```bash
+sudo apt update -y
+
+sudo apt install -y wget gpg lsb-release
+
+wget -O- https://apt.releases.hashicorp.com/gpg | \
+sudo gpg --dearmor \
+-o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+
+echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] \
+https://apt.releases.hashicorp.com $(lsb_release -cs) main" | \
+sudo tee /etc/apt/sources.list.d/hashicorp.list
+
+sudo apt update
+
+sudo apt install terraform -y
+
+terraform -version
+```
+
+## 9. Important Terraform Commands
+
+| Command | Purpose |
+|---|---|
+| terraform version | Displays installed Terraform version |
+| terraform init | Initializes the working directory |
+| terraform fmt | Formats Terraform configuration files |
+| terraform fmt -recursive | Formats files in the directory and subdirectories |
+| terraform validate | Checks configuration syntax and consistency |
+| terraform plan | Shows the execution plan |
+| terraform apply | Creates or updates infrastructure |
+| terraform apply -auto-approve | Applies changes without interactive approval |
+| terraform destroy | Destroys managed infrastructure |
+| terraform destroy -auto-approve | Destroys infrastructure without interactive approval |
+| terraform state list | Lists resources tracked in state |
+
+### Terraform Workflow
+
+```text
+I - Initialize
+P - Plan
+A - Apply
+D - Destroy
+```
+
+## 10. Terraform Configuration File Structure
+
+Terraform configuration files use the `.tf` extension.
+
+There are three important concepts:
+
+1. Blocks
+2. Labels
+3. Arguments
+
+### Example
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+```
+
+Explanation:
+
+- `provider` – Block type
+- `aws` – Label
+- `{ }` – Block body
+- `region` – Argument
+- `"ap-south-1"` – Argument value
+
+### Resource Block Example
+
+```hcl
+resource "aws_instance" "myinstance" {
+  ami           = "ami-xxxxxxxx"
+  instance_type = "t2.micro"
+}
+```
+
+Explanation:
+
+- `resource` – Block type
+- `aws_instance` – Resource type
+- `myinstance` – Local resource name
+- `ami` and `instance_type` – Arguments
+
+Terraform identifiers commonly use underscores to separate words.
+
+## 11. First Terraform Example – Create an EC2 Instance
+
+Create a project directory:
+
+```bash
+mkdir terraform
+
+cd terraform
+```
+
+Create a file:
+
+```bash
+vi main.tf
+```
+
+Add the following configuration:
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  ami           = "YOUR_VALID_AMI_ID"
+  instance_type = "t2.micro"
+}
+```
+
+Replace the AMI ID with a valid AMI for your AWS region.
+
+### Step 1: Format the Configuration
+
+```bash
+terraform fmt
+```
+
+### Step 2: Initialize Terraform
+
+```bash
+terraform init
+```
+
+This downloads the required provider plugins.
+
+### Step 3: Validate Configuration
+
+```bash
+terraform validate
+```
+
+### Step 4: Check the Execution Plan
+
+```bash
+terraform plan
+```
+
+### Step 5: Create EC2 Instance
+
+```bash
+terraform apply
+```
+
+Enter `yes` when prompted.
+
+Alternatively:
+
+```bash
+terraform apply -auto-approve
+```
+
+### Terraform Plan Symbols
+
+| Symbol | Meaning |
+|---|---|
+| + | Create a resource |
+| - | Destroy a resource |
+| ~ | Update a resource |
+
+## 12. What is the .terraform Directory?
+
+When we execute:
+
+```bash
+terraform init
+```
+
+Terraform creates a `.terraform` directory.
+
+It contains downloaded provider plugins and other initialization-related information.
+
+Example:
+
+```bash
+ls -la
+
+cd .terraform
+```
+
+## 13. What is Terraform State File?
+
+Terraform uses a state file to track infrastructure resources.
+
+By default, Terraform stores state locally in:
+
+```text
+terraform.tfstate
+```
+
+### Why is the State File Important?
+
+1. Tracks resources created by Terraform.
+2. Maps Terraform configuration to real cloud resources.
+3. Stores resource IDs and metadata.
+4. Helps Terraform identify infrastructure changes.
+5. Helps Terraform understand current infrastructure.
+
+### Useful Commands
+
+View the state file:
+
+```bash
+cat terraform.tfstate
+```
+
+List resources tracked by Terraform:
+
+```bash
+terraform state list
+```
+
+**Important:** State files may contain sensitive information. Never upload an unprotected state file to a public GitHub repository.
+
+## 14. Local State vs Remote State
+
+### Local State
+
+By default, Terraform stores the state file on the local machine.
+
+Problems:
+- Difficult for teams to share.
+- Multiple users may work with outdated state.
+- Risk of conflicting changes.
+- Difficult to maintain collaboration.
+
+### Remote State
+
+Remote state stores Terraform state in a shared remote backend.
+
+Example:
+
+- Amazon S3
+- HCP Terraform
+
+Benefits:
+- Team collaboration.
+- Centralized state storage.
+- Easier infrastructure management.
+- Remote state locking where supported and configured.
+
+For AWS S3 backends, configure appropriate permissions, encryption, and state locking using supported backend settings.
+
+## 15. What is .terraform.lock.hcl?
+
+Terraform generates `.terraform.lock.hcl` during initialization.
+
+It records the selected provider versions and checksums.
+
+### Purpose
+
+1. Dependency management.
+2. Consistent provider versions.
+3. More predictable deployments.
+4. Provider integrity verification.
+
+**Important:** Commit `.terraform.lock.hcl` to GitHub so that team members use consistent provider dependencies.
+
+## 16. Current State vs Desired State
+
+### Current State
+
+The actual infrastructure currently running in the cloud.
+
+Terraform tracks this information through its state management.
+
+### Desired State
+
+The infrastructure we want to create, as defined in Terraform configuration files.
+
+### Example
+
+Desired State:
+
+We want to create 5 EC2 instances.
+
+Current State:
+
+Only 3 EC2 instances currently exist.
+
+Terraform compares the configuration and tracked infrastructure, refreshes information as needed, and generates a plan to reach the desired state.
+
+## 17. Create Multiple EC2 Instances Using Count
+
+Terraform provides the `count` meta-argument to create multiple instances of the same resource.
+
+### Example
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  count         = 5
+  ami           = "YOUR_VALID_AMI_ID"
+  instance_type = "t2.micro"
+}
+```
+
+### Apply Configuration
+
+```bash
+terraform init
+
+terraform plan
+
+terraform apply -auto-approve
+```
+
+### Check Resources
+
+```bash
+terraform state list
+```
+
+Expected resource addresses:
+
+```text
+aws_instance.myinstance[0]
+aws_instance.myinstance[1]
+aws_instance.myinstance[2]
+aws_instance.myinstance[3]
+aws_instance.myinstance[4]
+```
+
+## 18. Target Specific Resources
+
+Terraform supports the `-target` option to focus an operation on a specific resource.
+
+**Single Target – Destroy One EC2 Instance**
+
+```bash
+terraform destroy -auto-approve \
+-target=aws_instance.myinstance[0]
+```
+
+**Multiple Targets – Destroy Two EC2 Instances**
+
+```bash
+terraform destroy -auto-approve \
+-target=aws_instance.myinstance[1] \
+-target=aws_instance.myinstance[2]
+```
+
+Check the remaining resources:
+
+```bash
+terraform state list
+```
+
+Finally, destroy the remaining infrastructure:
+
+```bash
+terraform destroy -auto-approve
+```
+
+**Note:** Resource targeting is intended for exceptional situations, not regular infrastructure management. Always review the execution plan before applying targeted operations.
+
+## 19. Important Points to Remember
+
+- Terraform is an Infrastructure as Code tool.
+- Terraform uses HCL.
+- Terraform configuration files have `.tf` extensions.
+- Terraform is developed in Go.
+- `terraform init` downloads required providers.
+- `terraform plan` previews infrastructure changes.
+- `terraform apply` creates or updates infrastructure.
+- `terraform destroy` deletes managed infrastructure.
+- State files track managed infrastructure.
+- Remote state is useful for team collaboration.
+- `count` creates multiple instances of a resource.
+- Terraform can work with AWS, Azure, Google Cloud, and other providers.
+
+## 20. Day-1 Learning Summary
+
+In Terraform Day-1, I learned:
+
+1. Introduction and history of Terraform.
+2. Infrastructure as Code (IaC).
+3. Terraform vs Ansible.
+4. Terraform project structure.
+5. Installing Terraform on Amazon Linux 2023 and Ubuntu.
+6. Terraform blocks, labels, and arguments.
+7. Important Terraform commands.
+8. Creating an EC2 instance using Terraform.
+9. Terraform initialization and provider plugins.
+10. State files and remote state.
+11. Current State vs Desired State.
+12. Creating multiple EC2 instances using `count`.
+13. Targeting specific resources.
+
+**Next Learning Topics:** Terraform variables, outputs, data sources, and advanced resource management.
+
+---
+
+# Technologies Covered
+
+- Terraform
+- AWS
+- EC2
+- Infrastructure as Code (IaC)
+- HCL
+- Linux
+- Cloud Automation
