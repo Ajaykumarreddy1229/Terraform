@@ -1,0 +1,566 @@
+# Terraform Variables – Complete Study Notes
+
+## 1. Introduction to Terraform Variables
+
+In Terraform, variables are used to make configurations more dynamic and reusable.
+
+Terraform variables allow us to parameterize configurations instead of hardcoding values directly into configuration files.
+
+**Benefits of Variables:**
+- Make code flexible and reusable.
+- Avoid hardcoding values.
+- Make configurations easier to manage.
+- Customize Terraform deployments.
+
+## 2. Types of Terraform Variables
+
+### 1. Input Variables
+- Used to pass values into Terraform configurations.
+- Defined using the `variable` block.
+
+### 2. Output Variables
+- Used to return values from Terraform configurations after applying.
+- Help share information between configurations or modules.
+
+### 3. Local Variables
+- Used to assign values to expressions.
+- Improve code readability and maintainability.
+
+## 3. Terraform Variable Types
+
+| Variable Type | Description |
+|---|---|
+| string | Sequence of characters |
+| number | Numeric values |
+| bool | True or false |
+| list(type) | Ordered collection of elements |
+| map(type) | Key-value pairs |
+| set(type) | Unique unordered elements |
+| object({...}) | Structured object with named attributes |
+| tuple([...]) | Fixed sequence of different types |
+
+## 4. List Functions
+
+### length()
+Returns the number of elements in a list.
+
+```hcl
+variable "fruits" {
+  type    = list(string)
+  default = ["apple", "banana", "cherry"]
+}
+
+output "list_length" {
+  value = length(var.fruits)
+}
+```
+
+### concat()
+Combines multiple lists into a single list.
+
+```hcl
+variable "fruits" {
+  type    = list(string)
+  default = ["apple", "grapes"]
+}
+
+variable "vegies" {
+  type    = list(string)
+  default = ["onions", "tomatoes"]
+}
+
+output "combined_list" {
+  value = concat(var.fruits, var.vegies)
+}
+```
+
+### element()
+Returns an element at a specified index.
+
+```hcl
+variable "fruits" {
+  type    = list(string)
+  default = ["apple", "banana", "cherry"]
+}
+
+output "selected_element" {
+  value = element(var.fruits, 1)
+}
+```
+
+### zipmap()
+Creates a map using a list of keys and a list of values.
+
+```hcl
+variable "keys" {
+  type    = list(string)
+  default = ["name", "age"]
+}
+
+variable "values" {
+  type    = list(any)
+  default = ["Alice", 30]
+}
+
+output "my_map" {
+  value = zipmap(var.keys, var.values)
+}
+```
+
+### lookup()
+Retrieves a value associated with a specific key in a map.
+
+```hcl
+variable "my_map" {
+  type = map(string)
+  default = {
+    name = "Venky"
+    age  = "50"
+  }
+}
+
+output "value" {
+  value = lookup(var.my_map, "name")
+}
+```
+
+### join()
+Joins list elements into a single string using a separator.
+
+```hcl
+variable "fruits" {
+  type    = list(string)
+  default = ["apple", "banana", "cherry"]
+}
+
+output "joined_string" {
+  value = join(", ", var.fruits)
+}
+```
+
+## 5. Set Example
+
+A set is used when uniqueness is required and order does not matter.
+
+```hcl
+variable "unique_names" {
+  type    = set(string)
+  default = ["Alice", "Bob", "Charlie", "Bob"]
+}
+
+output "unique_names_list" {
+  value = tolist(var.unique_names)
+}
+```
+
+## 6. Map Example
+
+A map stores data in key-value pairs.
+
+```hcl
+variable "instance_tags" {
+  type = map(string)
+
+  default = {
+    Name = "WebServer"
+    Env  = "Production"
+  }
+}
+
+output "instance_tags_output" {
+  value = var.instance_tags
+}
+
+output "instance_name" {
+  value = var.instance_tags["Name"]
+}
+
+output "tag_keys" {
+  value = keys(var.instance_tags)
+}
+
+output "tag_values" {
+  value = values(var.instance_tags)
+}
+```
+
+## 7. Tuple Example
+
+A tuple allows different data types in a fixed order.
+
+```hcl
+variable "mixed_values" {
+  type    = tuple([string, number, bool])
+  default = ["example", 42, true]
+}
+
+output "mixed_values_output" {
+  value = var.mixed_values
+}
+
+output "first_element" {
+  value = var.mixed_values[0]
+}
+
+output "second_element" {
+  value = var.mixed_values[1]
+}
+
+output "third_element" {
+  value = var.mixed_values[2]
+}
+```
+
+## 8. Practical Example – Creating EC2 Instances Using Variables
+
+Create `main.tf`.
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+variable "instance_count" {
+  description = "*"
+  type        = number
+  default     = 3
+}
+
+variable "instance_ami" {
+  description = "*"
+  type        = string
+  default     = "ami-0492447090ced6eb5"
+}
+
+variable "instance_type" {
+  description = "*"
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "instance_name" {
+  description = "*"
+  type        = string
+  default     = "TF-Server"
+}
+
+resource "aws_instance" "myinstance" {
+  count         = var.instance_count
+  ami           = var.instance_ami
+  instance_type = var.instance_type
+
+  tags = {
+    Name = var.instance_name
+  }
+}
+```
+
+### Terraform Commands
+
+```bash
+terraform fmt
+terraform plan
+terraform apply --auto-approve
+```
+
+## 9. Separating Variables into variables.tf
+
+To manage variables easily, we can move variable definitions into a separate file called `variables.tf`.
+
+Terraform automatically loads `.tf` files in the same working directory.
+
+### main.tf
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  count         = var.instance_count
+  ami           = var.instance_ami
+  instance_type = var.instance_type
+
+  tags = {
+    Name = var.instance_name
+  }
+}
+```
+
+### variables.tf
+
+```hcl
+variable "instance_count" {
+  description = "*"
+  type        = number
+  default     = 1
+}
+
+variable "instance_ami" {
+  description = "*"
+  type        = string
+  default     = "ami-0492447090ced6eb5"
+}
+
+variable "instance_type" {
+  description = "*"
+  type        = string
+  default     = "t2.micro"
+}
+
+variable "instance_name" {
+  description = "*"
+  type        = string
+  default     = "TF-Server"
+}
+```
+
+### Commands
+
+```bash
+terraform apply --auto-approve
+terraform state list
+terraform destroy --auto-approve
+```
+
+## 10. Terraform Variables Files – .tfvars
+
+`.tfvars` files allow us to separate variable values from the main Terraform configuration.
+
+They are useful when managing multiple environments such as:
+
+- Development
+- Testing
+- Production
+
+Terraform automatically recognizes `terraform.tfvars` as a default variable values file.
+
+We can also create custom files:
+
+- `dev.tfvars`
+- `test.tfvars`
+- `prod.tfvars`
+
+### variables.tf
+
+Remove the default values and keep only the variable definitions.
+
+```hcl
+variable "instance_count" {
+  type = number
+}
+
+variable "instance_ami" {
+  type = string
+}
+
+variable "instance_type" {
+  type = string
+}
+
+variable "instance_name" {
+  type = string
+}
+```
+
+### dev.tfvars
+
+```hcl
+instance_count = 1
+instance_ami   = "ami-0492447090ced6eb5"
+instance_type  = "t2.micro"
+instance_name  = "Dev-Server"
+```
+
+### prod.tfvars
+
+```hcl
+instance_count = 1
+instance_ami   = "ami-0492447090ced6eb5"
+instance_type  = "t2.micro"
+instance_name  = "Prod-Server"
+```
+
+### Applying Different Environments
+
+```bash
+terraform apply --auto-approve -var-file="dev.tfvars"
+
+terraform apply --auto-approve -var-file="test.tfvars"
+
+terraform apply --auto-approve -var-file="prod.tfvars"
+```
+
+### Destroying Resources
+
+```bash
+terraform destroy --auto-approve -var-file="test.tfvars"
+
+terraform destroy --auto-approve -var-file="prod.tfvars"
+```
+
+**Note:** These commands use the default workspace unless a different workspace is selected. Applying different variable files does not automatically create separate environments or state files.
+
+## 11. Command-Line Variables
+
+Terraform allows us to provide variable values directly through command-line arguments.
+
+If variable values are not provided through defaults or variable files, Terraform can ask for input interactively.
+
+### Example
+
+```bash
+terraform apply --auto-approve
+```
+
+### Providing Variables Using -var
+
+```bash
+terraform apply --auto-approve \
+-var="instance_type=t2.micro" \
+-var="instance_count=1" \
+-var="instance_name=test-server" \
+-var="instance_ami=ami-0492447090ced6eb5"
+```
+
+### Destroy Command
+
+```bash
+terraform destroy --auto-approve \
+-var="instance_type=t2.micro" \
+-var="instance_count=1" \
+-var="instance_name=test-server" \
+-var="instance_ami=ami-0492447090ced6eb5"
+```
+
+## 12. Environment Variables Using export
+
+Terraform also supports environment variables for providing input variable values.
+
+The environment variable must follow the format:
+
+`TF_VAR_variable_name`
+
+### Example
+
+```bash
+export TF_VAR_ami=ami-0492447090ced6eb5
+```
+
+### variables.tf
+
+```hcl
+variable "ami" {
+  description = "*"
+  type        = string
+}
+```
+
+### main.tf
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  count         = 1
+  ami           = var.ami
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "reya-server"
+  }
+}
+```
+
+### Commands
+
+```bash
+terraform apply --auto-approve
+terraform destroy --auto-approve
+```
+
+## 13. Terraform Output Variables
+
+Output variables are used to display information about resources after Terraform applies the configuration.
+
+### Example – EC2 Instance Information
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "outputvarexample-server"
+  }
+}
+
+output "instance-information" {
+  value = [
+    aws_instance.myinstance.public_ip,
+    aws_instance.myinstance.private_ip,
+    aws_instance.myinstance.public_dns
+  ]
+}
+```
+
+### Apply Command
+
+```bash
+terraform apply --auto-approve
+```
+
+The output will display the EC2 instance information in the command line.
+
+### Getting All EC2 Instance Information
+
+We can also return the complete resource object.
+
+```hcl
+output "instance-information" {
+  value = aws_instance.myinstance
+}
+```
+
+### Destroy Command
+
+```bash
+terraform destroy --auto-approve
+```
+
+## 14. Important Terraform Commands
+
+| Command | Purpose |
+|---|---|
+| `terraform fmt` | Formats Terraform files |
+| `terraform plan` | Shows the execution plan |
+| `terraform apply` | Applies the configuration |
+| `terraform destroy` | Destroys managed resources |
+| `terraform state list` | Lists resources in state |
+| `terraform workspace list` | Lists available workspaces |
+| `terraform apply -var-file="dev.tfvars"` | Applies values from a variable file |
+
+## 15. What I Practiced
+
+- Terraform input variables.
+- Terraform output variables.
+- Terraform local variables.
+- Different Terraform variable types.
+- List functions such as `length`, `concat`, `element`, `zipmap`, `lookup`, and `join`.
+- Set, Map, and Tuple examples.
+- Creating AWS EC2 instances using variables.
+- Separating variables into `variables.tf`.
+- Managing multiple configurations using `.tfvars` files.
+- Passing variables through command-line flags.
+- Using environment variables with `TF_VAR_`.
+- Displaying EC2 details using output variables.
+
+---
+
+**Topic: Terraform Variables – Practical Learning Notes**
