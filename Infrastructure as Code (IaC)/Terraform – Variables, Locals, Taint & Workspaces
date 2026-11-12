@@ -1,0 +1,569 @@
+# Terraform – Variables, Locals, Taint & Workspaces
+
+## Topics Covered
+
+1. Creating an S3 Bucket using Terraform Variables
+2. Launching an EC2 Instance using Terraform Variables
+3. Terraform Taint
+4. Terraform Untaint
+5. Terraform Replace
+6. Terraform Locals
+7. Terraform Workspaces
+8. Dynamic Local Variables
+
+---
+
+## 1. Creating an S3 Bucket Using Variables
+
+Terraform allows us to use variables to make infrastructure configuration reusable and easier to manage.
+
+### Project Structure
+
+```text
+.
+├── main.tf
+├── provider.tf
+├── terraform.tfvars
+└── variables.tf
+```
+
+### terraform.tfvars
+
+```hcl
+mybucket = "tf-example-reyaz-s3-bkt"
+```
+
+### provider.tf
+
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "5.63.1"
+    }
+  }
+}
+
+provider "aws" {
+  region = "ap-south-1"
+}
+```
+
+### variables.tf
+
+```hcl
+variable "mybucket" {
+  type        = string
+  description = "This is my DevOps test bucket from TF"
+  default     = ""
+}
+```
+
+### main.tf
+
+```hcl
+resource "aws_s3_bucket" "example" {
+  bucket = var.mybucket
+}
+```
+
+### Commands
+
+```bash
+terraform init
+terraform plan
+terraform apply --auto-approve
+terraform destroy --auto-approve
+```
+
+---
+
+## 2. Launching an EC2 Instance Using Variables
+
+### Project Structure
+
+```text
+.
+├── main.tf
+├── output.tf
+├── provider.tf
+├── terraform.tfvars
+└── variables.tf
+```
+
+### terraform.tfvars
+
+```hcl
+instance_ami  = "ami-0492447090ced6eb5"
+instance_type = "t2.micro"
+key_name      = "MyKey"
+name          = "MyInstance"
+```
+
+### variables.tf
+
+```hcl
+variable "instance_ami" {
+  type    = string
+  default = ""
+}
+
+variable "instance_type" {
+  type    = string
+  default = ""
+}
+
+variable "key_name" {
+  type    = string
+  default = ""
+}
+
+variable "name" {
+  description = "The name of the EC2 instance."
+  default     = ""
+}
+```
+
+### provider.tf
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+```
+
+### main.tf
+
+```hcl
+resource "aws_instance" "myinstance" {
+  ami           = var.instance_ami
+  instance_type = var.instance_type
+  key_name      = var.key_name
+
+  tags = {
+    Name = var.name
+  }
+}
+```
+
+### output.tf
+
+```hcl
+output "instance_public_ip" {
+  value     = aws_instance.myinstance.public_ip
+  sensitive = true
+}
+
+output "instance_id" {
+  value = aws_instance.myinstance.id
+}
+
+output "instance_public_dns" {
+  value = aws_instance.myinstance.public_dns
+}
+
+output "instance_arn" {
+  value = aws_instance.myinstance.arn
+}
+```
+
+### Commands
+
+```bash
+terraform init
+terraform plan
+terraform apply --auto-approve
+terraform destroy --auto-approve
+```
+
+---
+
+## 3. Terraform Taint
+
+Terraform taint is used to mark a specific resource for recreation.
+
+When a resource is marked as tainted, Terraform plans to destroy and recreate that resource during the next apply.
+
+### When to Use
+
+- Failed deployments
+- Manual changes
+- Resource corruption
+
+### Example
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "myinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "taint-server-example"
+  }
+}
+
+resource "aws_s3_bucket" "mys3bucket" {
+  bucket = "test-bkt-dkkfg-reya"
+}
+```
+
+### Commands
+
+```bash
+terraform apply --auto-approve
+
+terraform state list
+
+terraform taint aws_s3_bucket.mys3bucket
+
+terraform apply --auto-approve
+```
+
+The S3 bucket is marked for recreation. The EC2 instance is not marked for recreation.
+
+### Another Example
+
+```bash
+terraform state list
+
+terraform taint aws_instance.myinstance
+
+terraform apply --auto-approve
+```
+
+This marks the EC2 instance for recreation.
+
+### Untaint
+
+To remove the tainted status:
+
+```bash
+terraform untaint aws_instance.myinstance
+```
+
+### Terraform Replace
+
+Another way to request resource recreation:
+
+```bash
+terraform apply --auto-approve -replace="aws_instance.myinstance"
+```
+
+---
+
+## 4. Terraform Locals
+
+Terraform locals are used to assign values inside a Terraform configuration.
+
+They help:
+- Avoid repeating values.
+- Simplify complex expressions.
+- Improve code readability.
+- Reuse values within a module.
+
+### Example 1: Using Local Values
+
+```hcl
+locals {
+  project_name   = "My-Awesome-DevOps"
+  environment    = "Students"
+  instance_count = 2
+
+  tags = {
+    Name        = "${local.project_name}-${local.environment}"
+    Environment = local.environment
+  }
+}
+
+resource "aws_instance" "myinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t3.micro"
+  count         = local.instance_count
+  tags          = local.tags
+}
+
+output "instance_ids" {
+  description = "List of EC2 instance IDs"
+  value       = aws_instance.myinstance[*].id
+}
+```
+
+### Example 2: VPC, Subnet and EC2 Using Locals
+
+Instead of repeating `Prod` in every resource, we can define it once.
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+locals {
+  env = "Prod"
+}
+
+resource "aws_vpc" "myvpc" {
+  cidr_block = "192.168.0.0/16"
+
+  tags = {
+    Name = "${local.env}-VPC"
+  }
+}
+
+resource "aws_subnet" "subnet1" {
+  vpc_id            = aws_vpc.myvpc.id
+  cidr_block        = "192.168.1.0/24"
+  availability_zone = "ap-south-1a"
+
+  tags = {
+    Name = "${local.env}-Subnet"
+  }
+}
+
+resource "aws_instance" "myinstance" {
+  subnet_id     = aws_subnet.subnet1.id
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "${local.env}-Server"
+  }
+}
+```
+
+To change the environment, update:
+
+```hcl
+locals {
+  env = "Dev"
+}
+```
+
+---
+
+## 5. Terraform Workspaces
+
+A Terraform workspace is an isolated environment with its own state file.
+
+Workspaces help manage different environments using the same Terraform configuration.
+
+Examples:
+- Development
+- Testing
+- Production
+
+### Key Concepts
+
+**Isolation:** Each workspace maintains its own state.
+
+**Use Cases:** Manage multiple environments using the same configuration.
+
+**Default Workspace:** Terraform starts with a workspace called `default`.
+
+### Important Commands
+
+```bash
+terraform workspace list
+terraform workspace new dev
+terraform workspace show
+terraform workspace select dev
+terraform workspace delete dev
+```
+
+### Example: Different Instance Types for Different Workspaces
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+locals {
+  instance_types = {
+    dev  = "t2.micro"
+    test = "t2.small"
+    prod = "t2.medium"
+  }
+}
+
+resource "aws_instance" "workspace-example" {
+  ami           = "ami-08ee1453725d19cdb"
+  instance_type = local.instance_types[terraform.workspace]
+
+  tags = {
+    Name = "${terraform.workspace}-server"
+  }
+}
+
+output "active_workspace" {
+  description = "Current Terraform workspace"
+  value       = terraform.workspace
+}
+
+output "selected_instance_type" {
+  description = "Instance type selected for the current workspace"
+  value       = local.instance_types[terraform.workspace]
+}
+```
+
+### Commands
+
+```bash
+terraform workspace list
+
+terraform workspace new dev
+terraform plan
+
+terraform workspace new test
+terraform plan
+
+terraform workspace new prod
+terraform plan
+
+terraform workspace select dev
+terraform apply --auto-approve
+
+terraform workspace select test
+terraform apply --auto-approve
+```
+
+### Workspace State Files
+
+Workspace-specific state files are maintained under:
+
+```text
+terraform.tfstate.d/
+```
+
+### Deleting a Workspace
+
+1. Switch to another workspace.
+2. Select the workspace you want to delete.
+3. Destroy its resources.
+4. Switch to another workspace.
+5. Delete the workspace.
+
+```bash
+terraform workspace select test
+
+terraform destroy --auto-approve
+
+terraform workspace select dev
+
+terraform workspace delete test
+```
+
+**Important:**
+- You cannot delete the currently selected workspace.
+- The default workspace cannot be deleted.
+- Destroy resources before deleting a non-default workspace.
+
+---
+
+## 6. Another Workspace Example – VPC, Subnet and EC2
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+locals {
+  env = terraform.workspace
+}
+
+resource "aws_vpc" "one" {
+  cidr_block = "192.168.0.0/16"
+
+  tags = {
+    Name = "${local.env}-vpc"
+  }
+}
+
+resource "aws_subnet" "two" {
+  vpc_id            = aws_vpc.one.id
+  cidr_block        = "192.168.1.0/24"
+  availability_zone = "ap-south-1a"
+
+  tags = {
+    Name = "${local.env}-subnet"
+  }
+}
+
+resource "aws_instance" "three" {
+  subnet_id     = aws_subnet.two.id
+  ami           = "ami-0cb441cf7bb9cba22"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "${local.env}-server"
+  }
+}
+```
+
+The workspace name is used to create environment-specific resource names.
+
+---
+
+## 7. Dynamic Local Variable
+
+A dynamic local expression can select an EC2 instance type based on the active workspace.
+
+### Example
+
+```hcl
+resource "aws_instance" "dynamiclocalvarinstance" {
+  ami           = "ami-08ee1453725d19cdb"
+
+  instance_type = terraform.workspace == "prod" ? "m4.large" : "t2.small"
+
+  tags = {
+    Name = "Dynamic-local-var-example-server-${terraform.workspace}"
+  }
+}
+
+output "active_workspace" {
+  description = "Current Terraform workspace"
+  value       = terraform.workspace
+}
+
+output "selected_instance_type" {
+  description = "Instance type selected for the current workspace"
+  value       = aws_instance.dynamiclocalvarinstance.instance_type
+}
+```
+
+### How It Works
+
+- If the workspace is `prod`, Terraform selects `m4.large`.
+- For other workspaces, Terraform selects `t2.small`.
+
+---
+
+## 8. Important Terraform Commands
+
+| Command | Purpose |
+|---|---|
+| `terraform init` | Initialize Terraform |
+| `terraform plan` | Preview infrastructure changes |
+| `terraform apply` | Create or update infrastructure |
+| `terraform destroy` | Destroy managed infrastructure |
+| `terraform state list` | List resources in state |
+| `terraform taint` | Mark a resource for recreation (legacy command) |
+| `terraform untaint` | Remove tainted status (legacy command) |
+| `terraform apply -replace` | Replace a resource |
+| `terraform workspace list` | List workspaces |
+| `terraform workspace new` | Create a workspace |
+| `terraform workspace select` | Switch workspace |
+| `terraform workspace show` | Show active workspace |
+| `terraform workspace delete` | Delete a workspace |
+
+---
+
+## Learning Outcome
+
+In this practice, I covered Terraform variables, AWS S3 bucket creation, EC2 instance creation, resource recreation, local values, workspace management, and dynamic instance selection.
+
+These concepts help organize Terraform configurations and manage infrastructure across different environments.
