@@ -1,0 +1,478 @@
+# Terraform – Backend Setup, Remote State & State Management
+
+## Introduction
+
+Terraform uses a state file to keep track of the infrastructure it creates.
+
+By default, Terraform stores this file locally with the name `terraform.tfstate`.
+
+When multiple DevOps engineers work on the same project, managing a local state file becomes difficult.
+
+To solve this problem, we use **Remote State Management** with AWS S3.
+
+## 1. Remote State Management
+
+### What is Remote State?
+
+Remote State means storing the Terraform state file in a remote location instead of storing it on our local machine.
+
+We use an AWS S3 bucket to store the Terraform state file.
+
+### Why do we use Remote State?
+
+1. If our local machine is lost, the state file is still safe in S3.
+2. Multiple team members can access the shared state.
+3. It makes team collaboration easier.
+4. S3 versioning helps recover previous versions of the state file.
+
+### Practical Implementation
+
+**Step 1: Create an S3 Bucket**
+
+- Create an S3 bucket.
+- Keep the bucket private.
+- Enable bucket versioning.
+
+**Step 2: Configure the Backend**
+
+Create `main.tf`:
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+terraform {
+  backend "s3" {
+    bucket = "terraform-statefile-reyaz-1"
+    key    = "prod/terraform.tfstate"
+    region = "ap-south-1"
+  }
+}
+
+resource "aws_instance" "myfirstinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "backend-example1"
+  }
+}
+
+resource "aws_instance" "mysecondinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "backend-example2"
+  }
+}
+
+output "instance_ids" {
+  description = "List of EC2 instance IDs"
+  value = [
+    aws_instance.myfirstinstance.id,
+    aws_instance.mysecondinstance.id
+  ]
+}
+
+output "instance_names" {
+  description = "List of EC2 instance names"
+  value = [
+    aws_instance.myfirstinstance.tags.Name,
+    aws_instance.mysecondinstance.tags.Name
+  ]
+}
+```
+
+**Step 3: Initialize Terraform**
+
+```bash
+terraform init
+```
+
+**Step 4: Create EC2 Instances**
+
+```bash
+terraform apply --auto-approve
+```
+
+Now check your S3 bucket. The Terraform state file will be stored there.
+
+## 2. Terraform State Commands
+
+### List Resources
+
+```bash
+terraform state list
+```
+
+Shows all resources managed by Terraform.
+
+### Remove One Resource
+
+```bash
+terraform destroy --auto-approve -target="aws_instance.myfirstinstance"
+```
+
+Destroys only the selected EC2 instance and updates the remote state.
+
+### Check State File
+
+```bash
+cat terraform.tfstate
+```
+
+Checks the local state file, if one exists.
+
+### Check Backup State
+
+```bash
+cat terraform.tfstate.backup
+```
+
+Checks the local backup state file, if one exists.
+
+## 3. Bring State File from S3 to Local
+
+Sometimes we may want to stop using the S3 backend and manage the state file locally.
+
+Remove the backend configuration from the Terraform code.
+
+Then run:
+
+```bash
+terraform init -migrate-state
+```
+
+This migrates the existing state to the new backend.
+
+Alternatively:
+
+```bash
+terraform init -reconfigure
+```
+
+This reinitializes Terraform with the new backend configuration. It does not migrate the old state automatically.
+
+After migration, check:
+
+```bash
+terraform state list
+```
+
+## 4. Remove a Resource from Terraform State
+
+The `terraform state rm` command removes a resource from Terraform state without deleting the actual resource from AWS.
+
+Example:
+
+```bash
+terraform state list
+
+terraform state rm aws_instance.mysecondinstance
+
+terraform state rm aws_instance.myfirstinstance
+
+terraform state list
+```
+
+**Important:** The EC2 instances remain running in AWS. Terraform simply stops tracking them.
+
+Running `terraform destroy` after removing all resources from state will not destroy those untracked EC2 instances.
+
+## 5. Import an Existing AWS Resource
+
+If an EC2 instance already exists in AWS and we want Terraform to manage it, we can import it.
+
+```bash
+terraform import aws_instance.mysecondinstance i-0b1c2d3e4f5g67891
+```
+
+**Important:** Importing a resource does not automatically create its Terraform configuration. We must write the resource block ourselves.
+
+## 6. Additional Terraform State Commands
+
+### Move a Resource Address
+
+```bash
+terraform state mv aws_instance.mysecondinstance aws_instance.mythirdinstance
+```
+
+Changes the resource address in Terraform state without changing the actual AWS infrastructure.
+
+### Pull Remote State
+
+```bash
+terraform state pull
+```
+
+Downloads the current remote state and displays it in the terminal.
+
+## 7. State Locking
+
+### What is State Locking?
+
+State locking prevents multiple Terraform operations from changing the same state file at the same time.
+
+Without state locking, two engineers could update the state file simultaneously and create problems.
+
+### Why is State Locking Important?
+
+1. Prevents simultaneous state modifications.
+2. Protects the state file from conflicting updates.
+3. Helps maintain correct infrastructure information.
+4. Makes team collaboration safer.
+
+### S3 Native State Locking
+
+Terraform supports native S3 state locking through the `use_lockfile` option.
+
+**Note:** A DynamoDB table is no longer required when using S3 native lockfile locking.
+
+Example:
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+terraform {
+  backend "s3" {
+    bucket       = "terraform-statefile-reyaz-10"
+    key          = "prod/terraform.tfstate"
+    encrypt      = true
+    region       = "ap-south-1"
+    use_lockfile = true
+  }
+}
+
+resource "aws_instance" "myfirstinstance" {
+  ami           = "ami-0492447090ced6eb5"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "backend-example1"
+  }
+}
+```
+
+Run:
+
+```bash
+terraform init
+
+terraform plan
+
+terraform apply --auto-approve
+```
+
+Terraform uses an S3 lock file to coordinate state changes.
+
+## 8. Real-Time Terraform Project Folder Structure
+
+In real-time projects, we separate Terraform code into different files.
+
+```text
+terraform-project/
+│
+├── provider.tf
+├── backend.tf
+├── main.tf
+├── output.tf
+├── terraform.tfvars
+└── variables.tf
+```
+
+### provider.tf
+
+Contains the AWS provider configuration.
+
+### backend.tf
+
+Contains the S3 backend configuration.
+
+### main.tf
+
+Contains the actual AWS resource configuration.
+
+### variables.tf
+
+Defines the input variables.
+
+### terraform.tfvars
+
+Contains the actual values of the variables.
+
+### output.tf
+
+Displays useful information about created resources.
+
+### backend.tf
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "terraform-statefile-reyaz"
+    key          = "prod/terraform.tfstate"
+    encrypt      = true
+    use_lockfile = true
+    region       = "ap-south-1"
+  }
+}
+```
+
+### terraform.tfvars
+
+```hcl
+ami           = "ami-08ee1453725d19cdb"
+instance_type = "t3.micro"
+key_name      = "MyKey"
+```
+
+### variables.tf
+
+```hcl
+variable "ami" {
+  description = "Passing AMI value"
+  type        = string
+  default     = ""
+}
+
+variable "instance_type" {
+  type    = string
+  default = ""
+}
+
+variable "key_name" {
+  type    = string
+  default = ""
+}
+```
+
+### main.tf
+
+```hcl
+resource "aws_instance" "myinstance" {
+  ami           = var.ami
+  instance_type = var.instance_type
+  key_name      = var.key_name
+
+  tags = {
+    Name = "my-ec2"
+  }
+}
+```
+
+### output.tf
+
+```hcl
+output "instance_public_ip" {
+  value     = aws_instance.myinstance.public_ip
+  sensitive = true
+}
+
+output "instance_id" {
+  value = aws_instance.myinstance.id
+}
+
+output "instance_public_dns" {
+  value = aws_instance.myinstance.public_dns
+}
+
+output "instance_arn" {
+  value = aws_instance.myinstance.arn
+}
+```
+
+### Execute Terraform Commands
+
+```bash
+terraform init
+
+terraform plan
+
+terraform apply --auto-approve
+
+terraform destroy --auto-approve
+```
+
+## 9. Multi-Region Resource Creation
+
+Terraform allows us to create resources in different AWS regions using provider aliases.
+
+Example:
+
+```hcl
+provider "aws" {
+  alias  = "ap-south-1"
+  region = "ap-south-1"
+}
+
+provider "aws" {
+  alias  = "eu-west-1"
+  region = "eu-west-1"
+}
+
+resource "aws_instance" "example" {
+  ami           = "ami-0123456789abcdef0"
+  instance_type = "t2.micro"
+
+  provider = aws.ap-south-1
+}
+
+resource "aws_instance" "example2" {
+  ami           = "ami-0123456789abcdef0"
+  instance_type = "t2.micro"
+
+  provider = aws.eu-west-1
+}
+```
+
+**Important:** The AMI ID must be valid in the selected AWS region. The example AMI IDs are placeholders and should be replaced with valid regional AMIs.
+
+## 10. Terraform Practical Projects
+
+### Project 1: VPC, Web Servers and Load Balancer
+
+Topics:
+
+- Create a VPC.
+- Create two web servers.
+- Configure user data.
+- Configure a Load Balancer.
+- Connect the web servers to the Load Balancer.
+
+### Project 2: RDS
+
+Topics:
+
+- Create an AWS RDS database.
+- Configure the database infrastructure using Terraform.
+
+### Project Reference
+
+GitHub Repository:
+
+https://github.com/ReyazShaik/terraform.git
+
+## 11. Task 3 – Bulk Import
+
+Bulk Import is the task mentioned in the training notes.
+
+It involves importing multiple existing infrastructure resources into Terraform management.
+
+## Important Points to Remember
+
+1. Terraform stores state locally by default.
+2. S3 can be used for remote state storage.
+3. Enable S3 bucket versioning for state recovery.
+4. State locking prevents simultaneous state modifications.
+5. `use_lockfile = true` enables native S3 state locking.
+6. `terraform state rm` removes a resource from state, not from AWS.
+7. `terraform import` imports an existing resource into Terraform state.
+8. `terraform state mv` changes a resource address.
+9. `terraform state pull` retrieves remote state.
+10. Provider aliases help create resources in multiple AWS regions.
+
+**Practice Tip:** Write the Terraform code by hand instead of copying and pasting. Practising each command will help you understand Terraform better.
