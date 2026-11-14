@@ -1,0 +1,521 @@
+#Meta-Arguments and Providers
+
+## Topics Covered
+
+1. Terraform Meta-Arguments
+2. depends_on
+3. count
+4. length()
+5. for_each
+6. Lifecycle Rules
+7. ignore_changes
+8. prevent_destroy
+9. create_before_destroy
+10. Terraform Providers
+11. GitHub Provider
+12. Local Provider
+13. Terraform with Docker
+14. Terraform with Kubernetes
+
+---
+
+## 1. Terraform Meta-Arguments
+
+Meta-arguments are special arguments in Terraform. They control how resources, modules, and other blocks behave.
+
+The commonly used meta-arguments are:
+
+| Meta-Argument | Purpose |
+|---|---|
+| count | Creates multiple resources |
+| for_each | Creates resources using a set or map |
+| depends_on | Defines dependencies between resources |
+| provider | Selects a provider configuration |
+| lifecycle | Controls resource lifecycle behavior |
+
+## 2. depends_on
+
+The `depends_on` meta-argument defines dependencies between resources.
+
+It ensures that one resource is created or updated after another resource.
+
+Example:
+
+```hcl
+resource "aws_eip" "myinstance_eip" {
+  instance   = aws_instance.myinstance.id
+  depends_on = [aws_instance.myinstance]
+}
+```
+
+Here, the Elastic IP depends on the EC2 instance.
+
+Commands:
+
+```bash
+terraform init
+terraform apply --auto-approve
+terraform destroy --auto-approve
+```
+
+## 3. count
+
+The `count` meta-argument creates multiple instances of a resource.
+
+Example:
+
+```hcl
+resource "aws_instance" "myinstance" {
+  count         = 2
+  ami           = var.ami_id
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "WebServer-${count.index}"
+  }
+}
+```
+
+Terraform creates two EC2 instances:
+
+- WebServer-0
+- WebServer-1
+
+### Using count with length()
+
+We can use `length()` and `count` to create multiple EC2 instances with different instance types and names.
+
+```hcl
+variable "instance_type" {
+  default = ["t2.micro", "t2.small", "t2.medium"]
+}
+
+variable "instance_name" {
+  default = ["dev-server", "test-server", "prod-server"]
+}
+
+resource "aws_instance" "myinstance" {
+  count         = length(var.instance_type)
+  ami           = var.ami_id
+  instance_type = var.instance_type[count.index]
+
+  tags = {
+    Name = var.instance_name[count.index]
+  }
+}
+```
+
+## 4. for_each
+
+The `for_each` meta-argument creates multiple resources using a set or map.
+
+It provides more control when creating resources with different names and configurations.
+
+### Example 1: Using toset()
+
+```hcl
+resource "aws_instance" "myinstance" {
+  for_each      = toset(["dev-server", "test-server", "prod-server"])
+  ami           = var.ami_id
+  instance_type = "t3.micro"
+
+  tags = {
+    Name = each.key
+  }
+}
+```
+
+Important points:
+
+- `toset()` converts a list into a set.
+- `each.key` represents the resource key.
+- `each.value` represents the corresponding value.
+
+### Example 2: Using a Map
+
+```hcl
+variable "instances" {
+  type = map(string)
+
+  default = {
+    "web-server-1" = "t3.micro"
+    "web-server-2" = "t3.small"
+    "app-server-1" = "t3.medium"
+    "db-server-1"  = "m5.large"
+  }
+}
+
+resource "aws_instance" "myinstance" {
+  for_each      = var.instances
+  ami           = var.ami_id
+  instance_type = each.value
+
+  tags = {
+    Name = each.key
+  }
+}
+```
+
+### Example 3: Using Map of Objects
+
+```hcl
+variable "instances" {
+  type = map(object({
+    instance_type     = string
+    availability_zone = string
+  }))
+}
+
+resource "aws_instance" "servers" {
+  for_each = var.instances
+
+  ami               = var.ami_id
+  instance_type     = each.value.instance_type
+  availability_zone = each.value.availability_zone
+
+  tags = {
+    Name = each.key
+  }
+}
+```
+
+### count vs for_each
+
+| count | for_each |
+|---|---|
+| Uses a numeric index | Uses a key |
+| Uses count.index | Uses each.key and each.value |
+| Useful for numbered resources | Useful for named resources |
+| Resource instances are index-based | Resource instances are key-based |
+
+## 5. Lifecycle Meta-Argument
+
+Lifecycle controls how Terraform manages resource changes.
+
+Important lifecycle settings:
+
+1. ignore_changes
+2. prevent_destroy
+3. create_before_destroy
+
+### ignore_changes
+
+`ignore_changes` tells Terraform to ignore changes to selected resource attributes.
+
+Example:
+
+```hcl
+resource "aws_instance" "web_server" {
+  ami           = var.ami_id
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "test-server"
+  }
+
+  lifecycle {
+    ignore_changes = [
+      instance_type,
+      tags
+    ]
+  }
+}
+```
+
+Terraform ignores changes to the specified attributes during planning and applying.
+
+We can also use:
+
+```hcl
+lifecycle {
+  ignore_changes = all
+}
+```
+
+This tells Terraform to ignore all changes to the resource's attributes.
+
+### prevent_destroy
+
+`prevent_destroy` prevents Terraform from destroying a resource while this lifecycle rule is present.
+
+Example:
+
+```hcl
+resource "aws_instance" "one" {
+  ami           = var.ami_id
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "test-server"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+```
+
+If we execute:
+
+```bash
+terraform destroy
+```
+
+Terraform will block the destruction of this resource.
+
+### create_before_destroy
+
+`create_before_destroy` creates a replacement resource before destroying the existing resource.
+
+It helps reduce downtime during resource replacement.
+
+Example:
+
+```hcl
+resource "aws_instance" "one" {
+  ami           = var.ami_id
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "test-server"
+  }
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+```
+
+When a change requires replacement, Terraform creates the new instance first and then destroys the old instance.
+
+## 6. Terraform Providers
+
+Providers allow Terraform to communicate with different platforms and services.
+
+Three provider categories from the notes:
+
+1. Official Providers – AWS, Azure, GCP.
+2. Partner Providers – Oracle, Alibaba.
+3. Community Providers – Maintained by individual contributors.
+
+## 7. Terraform with GitHub Provider
+
+Terraform can manage GitHub resources using the GitHub provider.
+
+Example:
+
+```hcl
+terraform {
+  required_providers {
+    github = {
+      source = "integrations/github"
+    }
+  }
+}
+
+provider "github" {
+  token = var.github_token
+}
+
+resource "github_repository" "example" {
+  name        = "tf-github-repo"
+  description = "Created using Terraform"
+
+  visibility = "public"
+}
+```
+
+Use a securely supplied GitHub Personal Access Token. Never hardcode or upload tokens to GitHub.
+
+## 8. Terraform with Local Provider
+
+The Local provider can create files on the local machine.
+
+Example:
+
+```hcl
+resource "local_file" "one" {
+  filename = "test.txt"
+  content  = "This file is created using Terraform Local Provider"
+}
+```
+
+Commands:
+
+```bash
+terraform init
+terraform apply --auto-approve
+ls
+terraform destroy --auto-approve
+```
+
+## 9. Terraform with Docker
+
+Terraform can manage Docker images and containers.
+
+Example:
+
+```hcl
+terraform {
+  required_providers {
+    docker = {
+      source  = "kreuzwerker/docker"
+      version = "4.7.0"
+    }
+  }
+}
+
+provider "docker" {
+  host = "unix:///var/run/docker.sock"
+}
+
+resource "docker_image" "nginx" {
+  name         = "nginx:latest"
+  keep_locally = false
+}
+
+resource "docker_container" "nginx" {
+  name  = "nginx-container"
+  image = docker_image.nginx.image_id
+
+  ports {
+    internal = 80
+    external = 8080
+  }
+}
+
+output "container_name" {
+  value = docker_container.nginx.name
+}
+
+output "container_id" {
+  value = docker_container.nginx.id
+}
+```
+
+Commands:
+
+```bash
+terraform init -upgrade
+terraform plan
+terraform apply --auto-approve
+terraform destroy --auto-approve
+```
+
+Access the application using:
+
+```text
+http://<EC2-PUBLIC-IP>:8080
+```
+
+## 10. Terraform with Kubernetes
+
+Terraform can manage Kubernetes resources using the Kubernetes provider.
+
+First, create a Kubernetes cluster using Minikube or Kops and configure kubectl.
+
+Example:
+
+```hcl
+terraform {
+  required_providers {
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "3.0.1"
+    }
+  }
+}
+
+provider "kubernetes" {
+  config_path = "~/.kube/config"
+}
+
+resource "kubernetes_deployment" "nginx" {
+  metadata {
+    name = "nginx-deployment"
+
+    labels = {
+      app = "nginx"
+    }
+  }
+
+  spec {
+    replicas = 2
+
+    selector {
+      match_labels = {
+        app = "nginx"
+      }
+    }
+
+    template {
+      metadata {
+        labels = {
+          app = "nginx"
+        }
+      }
+
+      spec {
+        container {
+          image = "nginx:latest"
+          name  = "nginx"
+
+          port {
+            container_port = 80
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "kubernetes_service" "nginx" {
+  metadata {
+    name = "nginx-service"
+  }
+
+  spec {
+    selector = {
+      app = "nginx"
+    }
+
+    port {
+      protocol    = "TCP"
+      port        = 80
+      target_port = 80
+    }
+
+    type = "LoadBalancer"
+  }
+}
+```
+
+## Important Terraform Commands
+
+```bash
+terraform init
+terraform validate
+terraform plan
+terraform apply
+terraform apply --auto-approve
+terraform destroy
+terraform destroy --auto-approve
+terraform init -upgrade
+```
+
+## Day 4 Learning Summary
+
+In this session, I learned:
+
+- How Terraform Meta-Arguments work.
+- How to create multiple EC2 instances using count.
+- How to create named resources using for_each.
+- How to use length() and toset().
+- How to manage resource changes using lifecycle rules.
+- How to use different Terraform providers.
+- How to integrate Terraform with GitHub.
+- How to create local files using Terraform.
+- How to manage Docker containers using Terraform.
+- How to deploy Kubernetes resources using Terraform.
+
+**Conclusion:** Terraform can manage infrastructure and resources across multiple platforms using different providers and meta-arguments.
