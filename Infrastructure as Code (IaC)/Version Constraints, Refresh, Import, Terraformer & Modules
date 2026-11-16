@@ -1,0 +1,405 @@
+# Terraform Day 5 – Version Constraints, Refresh, Import, Terraformer & Modules
+
+## Topics Covered
+
+1. Terraform Version Constraints
+2. Terraform Refresh
+3. Terraform Import
+4. Terraformer – Bulk Resource Import
+5. Terraform Modules
+6. Root Module and Child Modules
+7. Practical Commands and Examples
+
+---
+
+## 1. Terraform Version Constraints
+
+Terraform version constraints help us control which versions of Terraform and provider plugins are allowed in our configuration.
+
+For example, we use the AWS provider to create and manage AWS resources.
+
+When AWS provider versions change, new features and changes may be introduced. We can control which provider version our Terraform configuration uses.
+
+Provider registry:
+
+https://registry.terraform.io/browse/providers
+
+### Version Constraint Operators
+
+| Operator | Meaning | Example |
+|---|---|---|
+| = | Exact version | = 5.56.1 |
+| != | Exclude version | != 5.56.1 |
+| > | Greater than | > 5.0 |
+| >= | Greater than or equal | >= 5.0 |
+| < | Less than | < 6.0 |
+| <= | Less than or equal | <= 5.64.0 |
+| ~> | Pessimistic constraint | ~> 5.0 |
+
+### Example: AWS Provider Version
+
+```hcl
+terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "< 5.56.1"
+    }
+  }
+}
+
+provider "aws" {
+  region = "ap-south-1"
+}
+```
+
+### Recommended Version Configuration
+
+```hcl
+terraform {
+  required_version = ">= 1.5.0, < 2.0.0"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "~> 5.0"
+    }
+  }
+}
+```
+
+### Important Commands
+
+```bash
+terraform init
+terraform init -upgrade
+```
+
+- `terraform init` initializes the working directory and installs the provider versions allowed by the configuration.
+- `terraform init -upgrade` checks for newer versions allowed by the version constraints and updates the dependency selections.
+
+**Important:** Terraform stores downloaded provider plugins inside the `.terraform` directory. The `.terraform.lock.hcl` file records the selected provider versions.
+
+---
+
+## 2. Terraform Refresh
+
+Terraform refresh is used to update the Terraform state file based on the actual infrastructure in AWS.
+
+It checks the real infrastructure and updates the state file with the latest information.
+
+### Practical Example
+
+Create an EC2 instance using Terraform.
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "one" {
+  ami           = "YOUR_AMI_ID"
+  instance_type = "t2.micro"
+
+  tags = {
+    Name = "reyaz-server"
+  }
+}
+```
+
+### Commands
+
+```bash
+terraform init
+terraform apply --auto-approve
+cat terraform.tfstate
+```
+
+Now change the EC2 instance Name tag manually in the AWS Console to `student-server`.
+
+Run:
+
+```bash
+terraform apply --auto-approve
+```
+
+Terraform compares the configuration, state and actual infrastructure. Since the configuration still specifies `reyaz-server`, Terraform will plan to restore that value.
+
+To refresh the state without applying the configuration:
+
+```bash
+terraform refresh
+```
+
+**Important:** The standalone `terraform refresh` command is deprecated. For safer workflows, use:
+
+```bash
+terraform plan -refresh-only
+terraform apply -refresh-only
+```
+
+Be careful when refreshing state. Always review changes before applying them.
+
+---
+
+## 3. Terraform Import
+
+Terraform import is used to bring existing infrastructure under Terraform management.
+
+For example, if an EC2 instance was created manually in the AWS Console, we can import it into Terraform.
+
+This helps us manage existing resources without recreating them.
+
+### Example 1: Import an EC2 Instance
+
+First, create an EC2 instance manually in AWS Console.
+
+Create `main.tf`:
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_instance" "example" {
+  ami           = "YOUR_AMI_ID"
+  instance_type = "t2.micro"
+}
+```
+
+Import the existing EC2 instance:
+
+```bash
+terraform init
+
+terraform import aws_instance.example YOUR_INSTANCE_ID
+```
+
+Check the state file:
+
+```bash
+cat terraform.tfstate
+```
+
+### Example 2: Import an S3 Bucket
+
+Create an S3 bucket manually in AWS Console.
+
+```hcl
+provider "aws" {
+  region = "ap-south-1"
+}
+
+resource "aws_s3_bucket" "example" {
+  bucket = "YOUR_UNIQUE_BUCKET_NAME"
+}
+```
+
+Import the bucket:
+
+```bash
+terraform import aws_s3_bucket.example YOUR_UNIQUE_BUCKET_NAME
+```
+
+Check:
+
+```bash
+cat terraform.tfstate
+```
+
+### Example 3: Import Multiple Resources
+
+Terraform CLI import works with one resource at a time.
+
+Example:
+
+```bash
+terraform import aws_instance.example YOUR_INSTANCE_ID
+
+terraform import aws_s3_bucket.example YOUR_BUCKET_NAME
+```
+
+We need to import each resource separately.
+
+**Important:** Import updates Terraform state. It does not automatically generate complete Terraform configuration. We must write and verify the matching resource configuration.
+
+---
+
+## 4. Terraformer – Bulk Resource Import
+
+Terraformer is a tool that helps import multiple existing cloud resources and generate Terraform configuration files.
+
+It is useful when we have many resources already created in AWS.
+
+### Install Terraformer on Amazon Linux
+
+```bash
+sudo yum update -y
+
+sudo yum install -y wget unzip
+
+wget https://github.com/GoogleCloudPlatform/terraformer/releases/download/0.8.24/terraformer-aws-linux-amd64 -O terraformer
+
+chmod +x terraformer
+
+sudo mv terraformer /usr/local/bin/
+
+echo 'export PATH=$PATH:/usr/local/bin' >> ~/.bashrc
+
+source ~/.bashrc
+```
+
+Check the version:
+
+```bash
+terraformer --version
+```
+
+### Practical Example 1: Import EC2 Instances
+
+First, launch three EC2 instances manually in AWS.
+
+Run:
+
+```bash
+terraformer import aws --resources=ec2_instance --regions=ap-south-1
+```
+
+### Practical Example 2: Import Multiple AWS Resources
+
+```bash
+terraformer import aws --resources=instance,vpc,subnet --regions=ap-south-1
+```
+
+Terraformer can help generate Terraform files for multiple existing resources.
+
+**Note:** Review generated configuration carefully before using it in a real environment. Check the tool's compatibility with your Terraform and AWS provider versions.
+
+---
+
+## 5. Terraform Modules
+
+Terraform modules help us organize and reuse Terraform code.
+
+A module is a collection of Terraform configuration files that manage related infrastructure resources.
+
+Modules make Terraform code:
+
+- Reusable
+- Organized
+- Easy to maintain
+- Easy to understand
+
+### Types of Modules
+
+**Root Module**
+
+- The root module is the main Terraform configuration directory.
+- Terraform starts execution from this directory.
+- We run `terraform init`, `terraform plan` and `terraform apply` here.
+- It can call other modules.
+
+**Child Module**
+
+- A child module is called from another module.
+- It contains reusable Terraform configurations.
+- It can be stored in a separate directory.
+- It can manage EC2, S3, VPC and other resources.
+
+### Terraform Module Project Structure
+
+```text
+modulesproject/
+│
+├── main.tf
+│
+└── modules/
+    │
+    ├── ec2-instances/
+    │   ├── main.tf
+    │   ├── variables.tf
+    │   └── outputs.tf
+    │
+    ├── s3-bucket/
+    │   ├── main.tf
+    │   ├── variables.tf
+    │   └── outputs.tf
+    │
+    └── vpc/
+        ├── main.tf
+        ├── variables.tf
+        └── outputs.tf
+```
+
+### Purpose of Each File
+
+| File | Purpose |
+|---|---|
+| main.tf | Defines AWS resources |
+| variables.tf | Defines input variables |
+| outputs.tf | Displays resource information |
+
+### Create Module Directories
+
+```bash
+mkdir -p modules/ec2-instances
+mkdir -p modules/s3-bucket
+mkdir -p modules/vpc
+```
+
+Create Terraform files inside each directory:
+
+```bash
+touch modules/ec2-instances/main.tf
+touch modules/ec2-instances/variables.tf
+touch modules/ec2-instances/outputs.tf
+
+touch modules/s3-bucket/main.tf
+touch modules/s3-bucket/variables.tf
+touch modules/s3-bucket/outputs.tf
+
+touch modules/vpc/main.tf
+touch modules/vpc/variables.tf
+touch modules/vpc/outputs.tf
+```
+
+### Execute the Project
+
+From the root module directory:
+
+```bash
+terraform init
+
+terraform plan
+
+terraform apply
+```
+
+To delete the infrastructure:
+
+```bash
+terraform destroy
+```
+
+**Important:** Before destroying resources, review the Terraform plan and make sure you are working in the correct environment.
+
+---
+
+## 6. What I Learned
+
+- How to control Terraform and AWS provider versions.
+- Difference between `terraform init` and `terraform init -upgrade`.
+- How Terraform refresh updates the state file.
+- How to import manually created AWS resources into Terraform.
+- How to use Terraformer for bulk resource import.
+- Difference between Root Module and Child Module.
+- How to organize Terraform code using modules.
+- How to create reusable Terraform configurations.
+
+---
+
+## Conclusion
+
+In this practice, I learned how to manage Terraform versions, refresh state, import existing AWS resources, use Terraformer for bulk imports and organize infrastructure using Terraform modules.
+
+These concepts are useful when managing real-world AWS infrastructure with Terraform.
