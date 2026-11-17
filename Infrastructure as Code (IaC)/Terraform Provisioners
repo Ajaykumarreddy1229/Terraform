@@ -1,0 +1,122 @@
+# Terraform Advanced Concepts
+
+## Introduction
+
+In this section, I learned some important advanced concepts in Terraform.
+
+These concepts help us automate infrastructure, reduce repeated code, retrieve existing AWS resource information, and manage infrastructure more efficiently.
+
+## Topics Covered
+
+### 1. Terraform Provisioners
+
+Provisioners are used to execute actions on local or remote machines after a resource is created.
+
+**Types of Provisioners:**
+
+- **local-exec:** Executes commands on the machine where Terraform is running.
+- **remote-exec:** Executes commands on a remote machine, such as an EC2 instance.
+- **file provisioner:** Copies files from the local machine to a remote machine.
+
+### 2. User Data
+
+User Data allows us to execute scripts when an EC2 instance launches.
+
+Example tasks:
+- Update the operating system.
+- Install Apache.
+- Start services.
+- Create a web page.
+
+### 3. Dynamic Blocks
+
+Dynamic blocks help us generate multiple nested configuration blocks without writing the same code repeatedly.
+
+Example:
+- Creating multiple security group ingress rules.
+- Allowing different ports such as 80, 443 and 8080.
+
+### 4. Terraform Maps
+
+A map is a Terraform variable type that stores key-value pairs.
+
+We can use maps to assign multiple tags to AWS resources.
+
+Example:
+
+```hcl
+ec2_tags = {
+  Env    = "prod"
+  Client = "Infy"
+  Name   = "Taggingserver"
+}
+```
+
+### 5. Terraform Data Sources
+
+Data sources allow Terraform to retrieve information about existing infrastructure.
+
+Examples:
+
+- Fetching the latest Amazon Linux AMI.
+- Getting details of an existing VPC.
+- Retrieving an existing S3 bucket.
+
+### 6. Terraform Cloud
+
+Terraform Cloud helps teams manage Terraform infrastructure through a centralized platform.
+
+Basic workflow:
+
+1. Create an account.
+2. Create an organization.
+3. Create a workspace.
+4. Connect a GitHub repository.
+5. Configure variables.
+6. Run Terraform plans and applies.
+
+### 7. Terraform Drift
+
+Drift happens when the actual infrastructure is different from the configuration maintained by Terraform.
+
+**How to fix drift:**
+
+- Run `terraform plan` to identify changes.
+- Run `terraform apply` to reconcile infrastructure.
+- Update Terraform code when manual changes are intentional.
+- Import externally created resources when needed.
+- Replace resources when necessary.
+
+**How to prevent drift:**
+
+- Use Terraform Cloud or remote state.
+- Enable state locking.
+- Avoid unnecessary manual changes.
+- Follow Infrastructure as Code best practices.
+
+## Learning Outcome
+
+Through these practical exercises, I learned how to:
+
+- Execute commands using Terraform provisioners.
+- Configure EC2 instances using User Data.
+- Reduce repeated code using Dynamic Blocks.
+- Manage resource tags using Maps.
+- Retrieve existing AWS resource information using Data Sources.
+- Understand Terraform Cloud.
+- Identify and manage infrastructure drift.
+
+## Technologies Used
+
+- Terraform
+- AWS
+- Amazon EC2
+- AWS Security Groups
+- Amazon VPC
+- Amazon S3
+- Terraform Cloud
+- GitHub
+
+---
+
+**Learning by Doing | Terraform | AWS | DevOps**
